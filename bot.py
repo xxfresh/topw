@@ -16,7 +16,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMAVEN_API_KEY = os.getenv("ADMAVEN_API_KEY")
 MONGO_URI = os.getenv("MONGO_URI")
 
-ADMAVEN_API_URL = "https://api.ad-maven.com/locker/create-link"
+# Correct AdMaven API endpoint
+ADMAVEN_API_URL = "https://publishers.ad-maven.com/api/public/content_locker"
 
 # Logging
 logging.basicConfig(level=logging.INFO)
@@ -53,18 +54,18 @@ async def handle_link(client, message):
     user_id = message.from_user.id
     original_url = message.text.strip()
 
-    # Call AdMaven API
     payload = {
         "api_key": ADMAVEN_API_KEY,
         "url": original_url
     }
 
     try:
-        response = requests.post(ADMAVEN_API_URL, json=payload)
+        # AdMaven expects form-encoded data
+        response = requests.post(ADMAVEN_API_URL, data=payload)
         data = response.json()
 
-        if data.get("success"):
-            short_url = data["short_url"]
+        if data.get("status") == "success":
+            short_url = data["link"]
 
             # Save to MongoDB
             links_col.insert_one({
