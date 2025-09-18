@@ -13,7 +13,7 @@ load_dotenv()
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMAVEN_API_KEY = os.getenv("ADMAVEN_API_KEY"))
+ADMAVEN_API_KEY = os.getenv("ADMAVEN_API_KEY")
 MONGO_URI = os.getenv("MONGO_URI")
 
 ADMAVEN_API_URL = "https://locker.ad-maven.com/api/create-link"
