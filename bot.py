@@ -16,7 +16,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMAVEN_API_KEY = os.getenv("ADMAVEN_API_KEY")
 MONGO_URI = os.getenv("MONGO_URI")
 
-ADMAVEN_API_URL = "https://locker.ad-maven.com/api/create-link"
+ADMAVEN_API_URL = "https://api.ad-maven.com/locker/create-link"
 
 # Logging
 logging.basicConfig(level=logging.INFO)
