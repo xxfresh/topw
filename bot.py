@@ -1,112 +1,130 @@
 import os
 import logging
 import requests
-import datetime
-from urllib.parse import quote
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pymongo import MongoClient
 from dotenv import load_dotenv
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
-# Load env
+# Load environment variables
 load_dotenv()
 
-API_ID = int(os.getenv("API_ID"))
-API_HASH = os.getenv("API_HASH")
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMAVEN_API_TOKEN = os.getenv("ADMAVEN_API_TOKEN")
-MONGO_URI = os.getenv("MONGO_URI")
+# Logging setup
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
+# ENV values
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+MONGO_URI = os.getenv("MONGO_URI")
+ADMAVEN_API_KEY = os.getenv("ADMAVEN_API_KEY")
+
+# MongoDB setup
+mongo_client = MongoClient(MONGO_URI)
+db = mongo_client["adtopg"]
+links_collection = db["links"]
+
+# AdMaven API
 ADMAVEN_API_URL = "https://publishers.ad-maven.com/api/public/content_locker"
 
-# Logging
-logging.basicConfig(level=logging.INFO)
 
-# DB
-mongo_client = MongoClient(MONGO_URI)
-db = mongo_client["admaven_bot"]
-links_col = db["links"]
+def generate_admaven_link(title: str, url: str, background: str = None):
+    """Send request to AdMaven API and return result or error"""
+    try:
+        headers = {
+            "Authorization": f"Bearer {ADMAVEN_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "title": title,
+            "url": url
+        }
+        if background:
+            payload["background"] = background
 
-# Bot
-app = Client("ad_maven_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+        response = requests.post(ADMAVEN_API_URL, json=payload, headers=headers)
+
+        # Try parsing JSON
+        try:
+            data = response.json()
+        except Exception:
+            return None, f"❌ Invalid JSON response: {response.text}"
+
+        if data.get("type") == "created":
+            return data["message"]["desturl"], None
+
+        # Debugging → return raw API response
+        return None, f"⚠️ Failed to generate link.\nAPI Response: {data}"
+
+    except Exception as e:
+        return None, f"❌ Exception occurred: {str(e)}"
 
 
-@app.on_message(filters.command("start"))
-async def start(client, message):
-    buttons = [
-        [InlineKeyboardButton("➕ Generate Link", callback_data="generate")],
-        [InlineKeyboardButton("📜 My Links", callback_data="my_links")]
+# Handlers
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("➕ Generate Link", callback_data="generate_link")],
+        [InlineKeyboardButton("📜 My Links", callback_data="list_links")]
     ]
-    await message.reply_text(
-        "👋 You can use me to create links from AdMaven.\n\nChoose an option below:",
-        reply_markup=InlineKeyboardMarkup(buttons)
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(
+        "👋 Welcome! I can help you generate AdMaven content locker links.\n\n"
+        "Choose an option below:",
+        reply_markup=reply_markup
     )
 
 
-@app.on_callback_query(filters.regex("generate"))
-async def ask_link(client, callback_query: CallbackQuery):
-    await callback_query.message.reply_text("🔗 Send me the original link you want to monetize.")
-    await callback_query.answer()
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
+    if query.data == "generate_link":
+        await query.message.reply_text("🔗 Send me the URL you want to lock:")
+        context.user_data["awaiting_url"] = True
 
-@app.on_message(filters.text & ~filters.command("start"))
-async def handle_link(client, message):
-    user_id = message.from_user.id
-    original_url = message.text.strip()
+    elif query.data == "list_links":
+        user_id = update.effective_user.id
+        user_links = links_collection.find({"user_id": user_id})
 
-    try:
-        # AdMaven requires URL encoding
-        encoded_url = quote(original_url, safe="")
-
-        headers = {
-            "Authorization": f"Bearer {ADMAVEN_API_TOKEN}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "title": "Generated via Telegram Bot",
-            "url": encoded_url,
-            "background": "https://via.placeholder.com/600x400.png?text=AdMaven"  # default background
-        }
-
-        response = requests.post(ADMAVEN_API_URL, json=payload, headers=headers)
-        data = response.json()
-
-        if data.get("type") == "created":
-            short_url = data["message"]["desturl"]
-
-            # Save to MongoDB
-            links_col.insert_one({
-                "user_id": user_id,
-                "original_url": original_url,
-                "short_url": short_url,
-                "created_at": datetime.datetime.utcnow()
-            })
-
-            await message.reply_text(f"✅ Your monetized link:\n\n{short_url}")
+        if user_links.count() == 0:
+            await query.message.reply_text("📭 You haven't generated any links yet.")
         else:
-            error_msg = data.get("message", "Unknown error")
-            await message.reply_text(f"⚠️ Failed to generate link: {error_msg}")
-    except Exception as e:
-        logging.error(f"Error: {e}")
-        await message.reply_text("❌ Error occurred while generating link.")
+            text = "📜 *Your Generated Links:*\n\n"
+            for idx, link in enumerate(user_links, 1):
+                text += f"{idx}. [{link['title']}]({link['desturl']})\n"
+            await query.message.reply_text(text, parse_mode="Markdown")
 
 
-@app.on_callback_query(filters.regex("my_links"))
-async def show_links(client, callback_query: CallbackQuery):
-    user_id = callback_query.from_user.id
-    user_links = list(links_col.find({"user_id": user_id}).sort("created_at", -1))
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.user_data.get("awaiting_url"):
+        url = update.message.text.strip()
+        context.user_data["awaiting_url"] = False
 
-    if not user_links:
-        await callback_query.message.reply_text("📭 You haven’t generated any links yet.")
-    else:
-        text = "📜 **Your Links:**\n\n"
-        for link in user_links[:10]:  # show latest 10
-            text += f"🔗 {link['original_url']} → {link['short_url']}\n\n"
+        await update.message.reply_text("⏳ Generating your AdMaven link...")
 
-        await callback_query.message.reply_text(text)
+        link, error = generate_admaven_link("Generated Link", url)
 
-    await callback_query.answer()
+        if link:
+            links_collection.insert_one({
+                "user_id": update.effective_user.id,
+                "title": "Generated Link",
+                "url": url,
+                "desturl": link
+            })
+            await update.message.reply_text(f"✅ Link generated:\n{link}")
+        else:
+            await update.message.reply_text(error)
 
 
-app.run()
+def main():
+    app = Application.builder().token(BOT_TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    logger.info("🚀 Bot started...")
+    app.run_polling()
+
+
+if __name__ == "__main__":
+    main()
