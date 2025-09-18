@@ -2,6 +2,7 @@ import os
 import logging
 import requests
 import datetime
+from urllib.parse import quote
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pymongo import MongoClient
@@ -13,10 +14,9 @@ load_dotenv()
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMAVEN_API_KEY = os.getenv("ADMAVEN_API_KEY")
+ADMAVEN_API_TOKEN = os.getenv("ADMAVEN_API_TOKEN")
 MONGO_URI = os.getenv("MONGO_URI")
 
-# Correct AdMaven API endpoint
 ADMAVEN_API_URL = "https://publishers.ad-maven.com/api/public/content_locker"
 
 # Logging
@@ -54,18 +54,26 @@ async def handle_link(client, message):
     user_id = message.from_user.id
     original_url = message.text.strip()
 
-    payload = {
-        "api_key": ADMAVEN_API_KEY,
-        "url": original_url
-    }
-
     try:
-        # AdMaven expects form-encoded data
-        response = requests.post(ADMAVEN_API_URL, data=payload)
+        # AdMaven requires URL encoding
+        encoded_url = quote(original_url, safe="")
+
+        headers = {
+            "Authorization": f"Bearer {ADMAVEN_API_TOKEN}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "title": "Generated via Telegram Bot",
+            "url": encoded_url,
+            "background": "https://via.placeholder.com/600x400.png?text=AdMaven"  # default background
+        }
+
+        response = requests.post(ADMAVEN_API_URL, json=payload, headers=headers)
         data = response.json()
 
-        if data.get("status") == "success":
-            short_url = data["link"]
+        if data.get("type") == "created":
+            short_url = data["message"]["desturl"]
 
             # Save to MongoDB
             links_col.insert_one({
@@ -77,7 +85,8 @@ async def handle_link(client, message):
 
             await message.reply_text(f"✅ Your monetized link:\n\n{short_url}")
         else:
-            await message.reply_text("⚠️ Failed to generate link. Please try again later.")
+            error_msg = data.get("message", "Unknown error")
+            await message.reply_text(f"⚠️ Failed to generate link: {error_msg}")
     except Exception as e:
         logging.error(f"Error: {e}")
         await message.reply_text("❌ Error occurred while generating link.")
