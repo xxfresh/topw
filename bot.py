@@ -113,7 +113,7 @@ async def handle_link(client, message):
         }
 
         data = {
-            "title": "Generated via Telegram Bot",
+            "title": "Do the tasks...to join",
             "url": original_url,   
             "background": ""  # Optional, can be omitted or an empty string
         }
