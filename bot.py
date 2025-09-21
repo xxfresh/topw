@@ -9,8 +9,8 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQ
 # Fixed API credentials
 API_ID = "19662976"
 API_HASH = "97cfb26df0a49ab11fa482a5bf660019"
-BOT_TOKEN = ""
-ADMAVEN_API_TOKEN = ""
+BOT_TOKEN = "8494624351:AAG5kRepk_AEu7fDrq5oTm_DTmreYLswi5U"
+ADMAVEN_API_TOKEN = "c5d33697568f605fbda0ed91f66569739e87338e31611cb98392d4672fc78af3"
 
 ADMAVEN_API_URL = "https://publishers.ad-maven.com/api/public/content_locker"
 
