@@ -9,15 +9,15 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQ
 # Fixed API credentials
 API_ID = "19662976"
 API_HASH = "97cfb26df0a49ab11fa482a5bf660019"
-BOT_TOKEN = "8225710278:AAFrkhQ7Q_89NlKsvm57cdYSDlTHVyVFYQA"
-ADMAVEN_API_TOKEN = "c5d33697568f605fbda0ed91f66569739e87338e31611cb98392d4672fc78af3"
+BOT_TOKEN = "8203701024:AAHz7-Dv885QNDH9RYgEZ3yQSFmL0NsAzHI"
+ADMAVEN_API_TOKEN = "63987949de27f36f4c8b683ac7bc3844bbd17c7933615085c72e2f5818fb6dd4"
 
 ADMAVEN_API_URL = "https://publishers.ad-maven.com/api/public/content_locker"
 
 logging.basicConfig(level=logging.INFO)
 
 # SQLite database setup
-DB_FILE = "admaven_bot.db"
+DB_FILE = "newmavembot.db"
 
 def init_database():
     """Initialize SQLite database and create tables if they don't exist."""
