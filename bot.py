@@ -113,7 +113,7 @@ async def handle_link(client, message):
         }
 
         data = {
-            "title": "Do the tasks to join",
+            "title": "zzz",
             "url": original_url,   
             "background": ""  # Optional, can be omitted or an empty string
         }
